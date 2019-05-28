@@ -1,7 +1,3 @@
 export class Falta{
-    id?:string;
-    estado:string;
-    fecha:string;
-    idAlumno:string;
-    idHora:string;
+    constructor(public estado:string, public fecha:string, public idAlumno:string, public idHora:string){}
 }

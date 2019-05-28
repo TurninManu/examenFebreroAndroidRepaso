@@ -1,6 +1,3 @@
 export class Alumno{
-    key:string;
-    apellidos:string;
-    idGrupo:string;
-    nombre:string;
+    constructor(public key:string, public apellidos:string, public idGrupo:string, public nombre:string){}
 }

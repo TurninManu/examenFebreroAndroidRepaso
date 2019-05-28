@@ -1,4 +1,3 @@
 export class Grupo{
-    id:string;
-    grupo:string;
+    constructor(public key:string, public grupo:string){}
 }
