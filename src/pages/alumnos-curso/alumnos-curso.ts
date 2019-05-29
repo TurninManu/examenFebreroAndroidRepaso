@@ -31,8 +31,13 @@ export class AlumnosCursoPage {
   
 
   ref=firebase.database().ref('/');
+  refAlumnos:any;
+  refFaltas:any;
+
+
 
   faltasHora:Falta[]=[];
+  faltasCopia:Falta[];
   alumnosConFalta:AlumnoConFalta[]=[];
 
 
@@ -47,18 +52,24 @@ export class AlumnosCursoPage {
     this.dia=this.diasSeamana[new Date(this.fechaSelec).getDay()];
 
     this.ref.on('value', res=>{
-      this.alumnos=snapshotToArray(res.child('alumnos/'));
-      this.faltas=snapshotToArray(res.child('faltas/'));
       this.horas=snapshotToArray(res.child('horas/'));
     });
 
-    console.log(this.faltas);
 
-    //FILTRAMOS LOS ALUMNOS DEL GRUPO SELECCIONADO
-    this.filtrarAlumnos();
+    this.refAlumnos=firebase.database().ref('alumnos/').orderByChild('idGrupo').startAt(this.grupoSelec).endAt(this.grupoSelec);
+    this.refAlumnos.on('value', res=>{
+      this.alumnos=snapshotToArray(res);
+    });
 
-    //FILTRAMOS LAS FALTAS
+    this.refFaltas=firebase.database().ref('faltas/').orderByChild('fecha').startAt(this.fechaSelec).endAt(this.fechaSelec);
+    this.refFaltas.on('value', res=>{
+      this.faltas=snapshotToArray(res);
+    });
+
+    //FILTAMOS LAS FALTAS A LA HORA SELECCIONADA
     this.filtrarFaltas();
+
+    this.faltasCopia=this.faltas;
 
 
    this.cargarAlumnosConFaltas();
@@ -87,27 +98,26 @@ export class AlumnosCursoPage {
     let alumnoAux:AlumnoConFalta=this.alumnosConFalta[indice];
     if(alumnoAux.falta=="ASISTE"){
       alumnoAux.falta="INJUSTIFICADA";
-      this.faltas.push(new Falta("INJUSTIFICADA", this.fechaSelec, alumnoAux.id, this.horaSelec));
+      this.faltasCopia.push(new Falta(null, "INJUSTIFICADA", this.fechaSelec, alumnoAux.id, this.horaSelec));
     }else if(alumnoAux.falta=="INJUSTIFICADA"){
       alumnoAux.falta="JUSTIFICADA";
 
       let salir=false;
-      for (let i = 0; i < this.faltas.length && salir; i++) {
-        const element = this.faltas[i];
+      for (let i = 0; i < this.faltasCopia.length && !salir; i++) {
+        const element = this.faltasCopia[i];
         if(alumnoAux.id==element.idAlumno){
-          this.faltas[i].estado="JUSTIFICADA";
+          this.faltasCopia[i].estado="JUSTIFICADA";
           salir=true;
         }
       }
       
     }else if(alumnoAux.falta=="JUSTIFICADA"){
       alumnoAux.falta="ASISTE";
-
       let salir=false;
-      for (let i = 0; i < this.faltas.length && salir; i++) {
-        const element = this.faltas[i];
+      for (let i = 0; i < this.faltasCopia.length && !salir; i++) {
+        const element = this.faltasCopia[i];
         if(alumnoAux.id==element.idAlumno){
-          this.faltas.splice(i,1);
+          this.faltasCopia.splice(i,1)
           salir=true;
         }
       }
@@ -129,9 +139,34 @@ export class AlumnosCursoPage {
         }, {
           text: 'Sí',
           handler: () => {
-            firebase.database().ref('faltas/').remove();
-            firebase.database().ref('faltas/').update(this.faltas);
-          }
+            this.faltas.forEach(falta => {
+              this.faltasCopia.forEach(faltaCopia => {
+                //COMPROBAMOS SI TIENE EL MISMO ID
+                if(falta.key==faltaCopia.key){
+                //COMPROBAMOS QUE EL ESTADO NO HA CAMBIADO
+
+                //SI HA CAMBIADO A ASISTE, LO BORRAMOS DE FIRESASE
+                if(faltaCopia.estado=="ASISTE"){
+                  firebase.database().ref('faltas/'+falta.key).remove();
+                }
+                //SI HA CAMBIADO A OTRO TIPO, REALIZAMOS EL CAMBIO
+                else if(falta.estado!=faltaCopia.estado){
+                  let faltaAux=faltaCopia;
+                  firebase.database().ref('faltas/'+falta.key).update(faltaAux);
+                }
+                 
+                }
+                //SI ES NUEVO LO AÑADIMOS
+                else{
+                  console.log("falso");
+                  //firebase.database().ref('faltas/').push(faltaCopia);
+                }
+
+              });//FIN FOR FALTASCOPIA
+            });//FIN FOR FALTAS
+
+            
+          }//FIN HANDLER
         }
       ]
     });
@@ -147,14 +182,6 @@ export class AlumnosCursoPage {
     });
   }
 
-  private filtrarAlumnos(){
-    let alumnosAux:Alumno[]=[];
-    this.alumnos.forEach(alum => {
-      if(alum.idGrupo==this.grupoSelec)
-        alumnosAux.push(alum);
-    });
-    this.alumnos=alumnosAux;
-  }
 
   private cargarAlumnosConFaltas(){
     this.alumnosConFalta=[];
